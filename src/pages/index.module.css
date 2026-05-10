@@ -1,0 +1,211 @@
+.main {
+  background: #04060c;
+  min-height: 100vh;
+}
+
+/* Hero */
+.hero {
+  padding: 5rem 2rem 4rem;
+  text-align: center;
+  background: radial-gradient(ellipse 80% 50% at 50% -10%, rgba(34, 211, 238, 0.12) 0%, transparent 70%);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.heroInner {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.3rem 0.9rem;
+  border-radius: 100px;
+  border: 1px solid rgba(34, 211, 238, 0.3);
+  background: rgba(34, 211, 238, 0.06);
+  color: #22d3ee;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.heroTitle {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.1;
+  margin: 0 0 1.25rem;
+  letter-spacing: -0.02em;
+}
+
+.heroAccent {
+  background: linear-gradient(135deg, #22d3ee 0%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.heroSub {
+  font-size: 1.125rem;
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.7;
+  margin: 0 0 2rem;
+  max-width: 580px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.heroCta {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btnPrimary {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.75rem 1.75rem;
+  border-radius: 8px;
+  background: #22d3ee;
+  color: #04060c !important;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-decoration: none !important;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.btnPrimary:hover {
+  background: #67e8f9;
+  transform: translateY(-1px);
+  color: #04060c !important;
+}
+
+.btnSecondary {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.75rem 1.75rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.85) !important;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none !important;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btnSecondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(34, 211, 238, 0.3);
+  color: #fff !important;
+}
+
+/* Concept bar */
+.conceptBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.conceptItem {
+  flex: 1 1 200px;
+  padding: 1.25rem 1.5rem;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.conceptItem:last-child {
+  border-right: none;
+}
+
+.conceptTerm {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #22d3ee;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.conceptDef {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.5;
+}
+
+/* Grid */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 1.75rem;
+  background: #04060c;
+  text-decoration: none !important;
+  transition: background 0.15s;
+}
+
+.card:hover {
+  background: rgba(34, 211, 238, 0.04);
+}
+
+.cardIcon {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.cardTitle {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff !important;
+  margin: 0;
+}
+
+.cardDesc {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.5);
+  line-height: 1.55;
+  margin: 0;
+}
+
+/* Tech strip */
+.techStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 2rem 2rem;
+  justify-content: center;
+}
+
+.techTag {
+  padding: 0.3rem 0.75rem;
+  border-radius: 100px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    padding: 3rem 1.25rem 2.5rem;
+  }
+  .conceptItem {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+}
