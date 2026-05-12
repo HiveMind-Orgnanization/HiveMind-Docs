@@ -6,67 +6,59 @@ sidebar_position: 2
 
 # Quick Start
 
-Get HiveMind running locally in **under 5 minutes**.
+Two paths:
+
+1. **Use the hosted devnet build** — open the deployed app, connect a Solflare or Phantom wallet on Solana devnet, and launch a mission. No setup. Best for evaluating the product.
+2. **Run locally** — clone the four repos and run the full stack on your machine. Best for building on top of HiveMind.
 
 ---
 
-## Prerequisites
+## Path 1: Use the Hosted Devnet Build
+
+| Step | Action |
+|---|---|
+| 1 | Open the live URL (linked from the [landing page](https://github.com/HiveMind-Orgnanization)) |
+| 2 | Switch your wallet (Solflare or Phantom) to **Devnet** |
+| 3 | Click **Connect Wallet** in the top-right |
+| 4 | Sign the auth message (free, no SOL spent — this issues your session JWT) |
+| 5 | Activate your free trial banner if prompted (sponsored by the HiveMind funder wallet) |
+| 6 | Hit **Launch Mission** → type a one-sentence objective → pick agents → launch |
+
+You'll need a small amount of devnet SOL (~0.1) for any optional on-chain interactions like Treasury deposits or follow-up payments. Get it with:
+
+```bash
+solana airdrop 1 <your-wallet-address> --url devnet
+```
+
+---
+
+## Path 2: Run Locally
+
+### Prerequisites
 
 | Requirement | Version | Notes |
 |---|---|---|
-| Node.js | 18+ | [nodejs.org](https://nodejs.org) |
+| Node.js | 20+ | [nodejs.org](https://nodejs.org) |
 | pnpm | latest | `npm i -g pnpm` |
-| Solana CLI | 1.18+ | `sh -c "$(curl -sSfL https://release.solana.com/stable/install)"` |
-| Phantom Wallet | latest | [phantom.app](https://phantom.app) — Chrome extension |
-| PostgreSQL | 14+ | Or use Docker |
-| Redis | 7+ | Or use Docker |
+| PostgreSQL | 14+ | Neon, Supabase, or local |
+| Solflare or Phantom | latest | Browser extension wallet |
+| OpenAI API key | — | Required — backend routes all agent calls through OpenAI |
 
----
+The Solana CLI is only needed if you want to deploy your own copy of the Anchor program; for normal use, the existing devnet program is sufficient.
 
-## Step 1: Clone the Repository
+### 1. Clone the Repos
 
-```bash
-git clone https://github.com/hivemind-protocol/hivemind
-cd hivemind
-```
-
-The repository contains three packages:
-
-```
-hivemind/
-├── hivemind-frontend/    # React + Vite app
-├── hivemind-backend/     # Hono API server
-├── hivemind-contracts/   # Anchor smart contracts
-└── hivemind-docs/        # This documentation
-```
-
----
-
-## Step 2: Start Supporting Services
-
-### Using Docker (Recommended)
+The project is split across four repos under the [HiveMind-Orgnanization](https://github.com/HiveMind-Orgnanization) GitHub org:
 
 ```bash
-docker run -d --name postgres \
-  -e POSTGRES_DB=hivemind \
-  -e POSTGRES_USER=hivemind \
-  -e POSTGRES_PASSWORD=hivemind \
-  -p 5432:5432 postgres:16
-
-docker run -d --name redis \
-  -p 6379:6379 redis:7
-
-docker run -d --name qdrant \
-  -p 6333:6333 qdrant/qdrant
+mkdir hivemind && cd hivemind
+git clone https://github.com/HiveMind-Orgnanization/HiveMind-Frontend.git hivemind-frontend
+git clone https://github.com/HiveMind-Orgnanization/HiveMind-Backend.git hivemind-backend
+git clone https://github.com/HiveMind-Orgnanization/hivemind-contracts.git
+git clone https://github.com/HiveMind-Orgnanization/hivemind-docs.git
 ```
 
-### Without Docker
-
-Install PostgreSQL, Redis, and [Qdrant](https://qdrant.tech/documentation/quick-start/) natively and ensure they're running on their default ports.
-
----
-
-## Step 3: Configure the Backend
+### 2. Backend Configuration
 
 ```bash
 cd hivemind-backend
@@ -76,27 +68,32 @@ cp .env.example .env
 Edit `.env`:
 
 ```bash
-# Database
-DATABASE_URL=postgresql://hivemind:hivemind@localhost:5432/hivemind
+# Database — Neon URL or any PostgreSQL connection string
+DATABASE_URL=postgres://user:password@host:5432/hivemind
 
-# Cache
-REDIS_URL=redis://localhost:6379
-
-# Vector Store
-QDRANT_URL=http://localhost:6333
-QDRANT_COLLECTION=hivemind
-
-# AI Models (add at least one)
+# Models — at minimum, OPENAI_API_KEY is required. The other model ids
+# in the UI dropdown are surfaced for the multi-vendor story; the
+# backend currently routes all calls through OPENAI_MODEL_ALL.
 OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...         # Optional — fast fallback
+OPENAI_MODEL_ALL=gpt-5.5
+OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL_HEAVY=gpt-5.5
+OPENAI_MODEL_CRIT=gpt-5.5
 
 # Solana
 SOLANA_RPC_URL=https://api.devnet.solana.com
 PROGRAM_ID=EV447FY9Q7Ty7pFo8wDPFRhkqASmj87GZjFr8CPjQ5om
 
+# Funder keypair — pays for free-trial registration on behalf of new
+# wallets. Optional locally; if missing, the free-trial flow will fail
+# but everything else works.
+FUNDER_SECRET_KEY=<base58-secret-or-byte-array-json>
+
 # Auth
 JWT_SECRET=<generate-a-random-64-char-string>
+
+# Swarm tuning
+SWARM_BUILD_REPAIR_MAX_ROUNDS=6
 
 # Port
 PORT=8787
@@ -109,17 +106,9 @@ npm install
 npm run dev
 ```
 
-You should see:
-```
-🚀 HiveMind API listening on http://localhost:8787
-✅ PostgreSQL connected
-✅ Redis connected
-✅ Qdrant connected
-```
+You should see the server bind on `http://localhost:8787`.
 
----
-
-## Step 4: Configure the Frontend
+### 3. Frontend Configuration
 
 ```bash
 cd ../hivemind-frontend
@@ -130,8 +119,12 @@ Edit `.env.local`:
 
 ```bash
 VITE_API_URL=http://localhost:8787
-VITE_WS_URL=ws://localhost:8787/ws
-VITE_SOLANA_NETWORK=devnet
+VITE_SOLANA_RPC_URL=https://api.devnet.solana.com
+
+# Optional: override the treasury recipient pubkey used by the Deposit
+# button and the follow-up paywall. Defaults to the deployer's funder
+# pubkey on devnet.
+VITE_HM_TREASURY_PUBKEY=<your-pubkey>
 ```
 
 Install and run:
@@ -141,69 +134,54 @@ pnpm install
 pnpm dev
 ```
 
-Open **http://localhost:5173**
+Open **http://localhost:5173**.
 
----
+### 4. Connect Your Wallet
 
-## Step 5: Connect Your Wallet
-
-1. Open Phantom and switch to **Devnet**  
-   (Phantom → Settings → Developer Settings → Devnet)
-
-2. Get devnet SOL:
-   ```bash
-   solana airdrop 2 <your-wallet-address> --url devnet
-   ```
-
+1. Switch Solflare / Phantom to **Devnet** (Settings → Developer Settings → Devnet)
+2. Get devnet SOL: `solana airdrop 1 <your-wallet> --url devnet`
 3. Click **Connect Wallet** in the app top-right
-
-4. Approve the sign-in message — this creates your API session
+4. Approve the sign-in message — this creates your API session (JWT stored in `localStorage` as `hm_jwt`)
 
 :::tip Free Trial
-New wallets automatically get **5 free trial missions** and **10 HIVE tokens daily** on devnet. No SOL needed for basic usage.
+New wallets can have their on-chain free trial sponsored by the HiveMind funder wallet (if `FUNDER_SECRET_KEY` is configured). The trial registers your wallet on the protocol's free-trial PDA so you can launch missions without paying.
 :::
 
----
+### 5. Launch Your First Mission
 
-## Step 6: Launch Your First Mission
-
-1. Click **New Mission** in the sidebar or navigate to `/missions/new`
-2. Type your objective:
+1. Click **New Mission** in the sidebar (or navigate to `/missions/new`)
+2. Type your objective. Example:
    ```
-   Research and write a comprehensive analysis of Solana DeFi protocols
-   launched in Q1 2026. Include market share, TVL trends, and growth metrics.
+   Build a Solana NFT minting landing page — hero, gallery, mint button.
    ```
-3. Select agents: **Research** + **Analytics** + **Strategy**
-4. Set budget: **8 SOL**, priority: **Standard**
-5. Click **Launch Mission** ✨
+3. Pick agents (the default roster for `high` priority is Strategy, Research, Design, Development, Marketing, Treasury, Coordination)
+4. Optionally override per-agent models (see [Choosing Models →](./guides/choosing-models))
+5. Set budget (default 6 SOL; 10 SOL is the hard cap)
+6. Click **Launch Mission**
 
-Watch agents execute in the **Live Console** → open it from the sidebar.
+Watch agents execute in the **Agent Workspace** (`/agents`). When the preview is bundleable, the right pane will switch from *"Building your preview…"* to the live Sandpack iframe.
 
 ---
 
 ## Verifying Everything Works
 
-### API Health Check
+### Health Check
 
 ```bash
-curl http://localhost:8787/health
-# {"status":"ok","postgres":true,"redis":true,"qdrant":true}
+curl http://localhost:8787/api/health
 ```
 
 ### WebSocket Test
 
 ```bash
 wscat -c ws://localhost:8787/ws
-# Connected (press CTRL+C to quit)
 > {"action":"subscribe","channel":"global"}
-# {"type":"ack","channel":"global"}
 ```
 
 ### On-Chain Program
 
 ```bash
 solana account EV447FY9Q7Ty7pFo8wDPFRhkqASmj87GZjFr8CPjQ5om --url devnet
-# Account data shows the program is deployed
 ```
 
 ---
@@ -214,31 +192,37 @@ solana account EV447FY9Q7Ty7pFo8wDPFRhkqASmj87GZjFr8CPjQ5om --url devnet
 
 The frontend can't reach the backend. Check:
 - Backend is running on port 8787
-- `VITE_API_URL` in `.env.local` is set correctly
-- No firewall blocking local connections
+- `VITE_API_URL` matches the backend address
+- No CORS errors in DevTools
 
 ### Wallet sign-in fails
 
-- Ensure you're on Devnet in Phantom
+- Ensure you're on **Devnet** in the wallet extension
 - Try disconnecting and reconnecting
-- Clear browser localStorage: `localStorage.clear()` in DevTools console
+- Clear `localStorage` if a stale `hm_jwt` is lingering: `localStorage.clear()`
 
-### Agents not executing
+### Preview stuck on "Building your preview…"
 
-- Verify `OPENAI_API_KEY` is valid and has credits
-- Check backend logs for model errors
-- The trial gate requires `register_user` on-chain — click "Register" in the Trial page
+- Wait for Development agent to produce `frontend/package.json` and an entry file (`App.tsx` / `main.tsx`) — the preview releases the moment both exist
+- If Development finished and it's still stuck, refresh the page; the artifact tree is re-evaluated on mount
 
-### "No memory matches" in Memory Explorer
+### Mission completion stuck
 
-- At least one mission must complete for memory to populate
-- If `QDRANT_URL` is wrong, memory writes fail silently — check backend logs
+- Check the swarm timeout — it defaults to ~20 minutes
+- Some non-code agents (Marketing, Treasury, Coordination) write only markdown; their slowness doesn't block the preview but does delay the *"completed"* status
+
+### Treasury deposit fails with "Insufficient funds"
+
+- Your wallet needs more than 0.1 SOL on devnet
+- Airdrop more: `solana airdrop 1 <wallet> --url devnet`
 
 ---
 
 ## Next Steps
 
-- [Architecture →](./architecture) — understand the full system
-- [Your First Mission →](./guides/first-mission) — a detailed walkthrough
-- [Custom Agents →](./guides/custom-agent) — build and deploy your own agent
-- [API Reference →](./api-reference) — integrate HiveMind into your app
+- **[Architecture →](./architecture)** — understand the full system
+- **[Your First Mission →](./guides/first-mission)** — detailed walkthrough
+- **[Choosing Models →](./guides/choosing-models)** — per-agent model selection
+- **[Live Preview →](./guides/live-preview)** — Sandpack + self-healing
+- **[Treasury Deposits →](./guides/treasury-deposit)** — depositing SOL on-chain
+- **[API Reference →](./api-reference)** — integrate HiveMind into your app

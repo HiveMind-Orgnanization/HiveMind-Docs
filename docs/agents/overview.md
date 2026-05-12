@@ -6,245 +6,144 @@ sidebar_position: 4
 
 # Agent Types
 
-HiveMind ships 7 built-in specialized agent types. Each owns a distinct domain, is powered by a specific LLM, and communicates through the shared orchestration bus. Agents run concurrently, delegate to each other, and write results to shared Qdrant memory.
+HiveMind ships with nine specialized agents. Each has:
+
+- A **role contract** — what it does, what it doesn't
+- A **headline model** — the default model picked for its job (overridable at mission creation)
+- An **expert identity** — a persona prompt fragment that frames its system message
+- A **deliverable contract** — a structured output it has to satisfy before the swarm can move on
 
 ---
 
-## Core Agents
+## The Nine Specialists
 
-### Strategy Agent
-**Model:** Claude Opus 4.7 &nbsp;·&nbsp; **Color:** `#22d3ee` (cyan) &nbsp;·&nbsp; **Trust level:** Highest
-
-The mission planner — the first agent activated on every mission. It reads your objective and produces a complete execution blueprint before any other agent starts work.
-
-**Outputs:**
-- Decomposed task tree with dependencies and stage gates
-- KPI definitions and measurable success metrics
-- Delegation plan (which tasks go to which agents in what order)
-- Confidence estimate (0–100%) and timeline projection
-- Risk flags (scope ambiguity, resource constraints, deadline pressure)
-
-**Behavior:** Strategy Agent is the only agent allowed to modify mission scope (`modify_mission_scope` permission). It re-plans when other agents report blockers or when the orchestrator detects significant drift from the original plan.
+| Agent | Name | Role | Default Model | Identity |
+|---|---|---|---|---|
+| **Strategy** | Atlas | Architecture, protocol decisions, sequencing | GPT-4o | Ex-YC partner |
+| **Research** | Vega | Market validation, competitor analysis, citations | DeepSeek v3 | Senior product researcher |
+| **Design** | Lumen | UI specs, layouts, design tokens, brand language | GPT-4.1 | Figma design lead |
+| **Development** | Orion | Production-ready code (the only role that edits files) | Llama 4 70B | Staff full-stack engineer |
+| **Marketing** | Nyx | Go-to-market plan, copy, social, positioning | Llama 4 70B | Growth marketing lead |
+| **Treasury** | Axiom | Budget allocation, on-chain escrow controls, settlement | Mixtral 8x22B | Crypto CFO |
+| **Analytics** | Echo | Metrics, projections, KPIs | DeepSeek v3 | Quantitative analyst |
+| **Coordination** | Halo | Cross-agent handoffs, dependency tracking, schedule | GPT-4.1 | Engineering manager |
+| **Memory** | Sage | Persistent context across sessions | GPT-4o mini | Knowledge curator |
 
 ---
 
-### Research Agent
-**Model:** GPT-4o &nbsp;·&nbsp; **Color:** `#a855f7` (purple)
+## Role Contracts
 
-Deep information gathering for any topic the mission requires. Research Agent uses web search tools, synthesizes large volumes of text, and writes structured findings to shared memory for other agents to build on.
+### Strategy (Atlas)
+**Does:** Decomposes the mission into a stage plan. Decides protocol type, architecture stack, sequencing. Writes `notes/Strategy.md`.
 
-**Capabilities:**
-- Web search and multi-source synthesis
-- Competitive and market analysis
-- Data retrieval, cleaning, and summarization
-- Citation tracking with source confidence scores
-- Cross-mission memory recall ("what did we learn about X last quarter?")
+**Doesn't:** Write code. Doesn't second-guess Development on implementation details. Hands off to Research.
 
-**Example output stored in memory:**
-```
-[Research:mem-1042] Solana DeFi TVL reached $4.2B in Q1 2026, up 180% YoY.
-Top protocols: Raydium (38%), Orca (22%), Drift (14%). Sources: DeFiLlama, Messari.
-Confidence: 0.91
-```
+### Research (Vega)
+**Does:** Validates the use case. Maps competitors, conventions, must-have features. Writes `notes/Research.md` with citations.
 
----
+**Doesn't:** Write code, design layouts, or pick brand colors. Hands off to Design.
 
-### Design Agent
-**Model:** GPT-4o + DALL-E 3 &nbsp;·&nbsp; **Color:** `#3b82f6` (blue)
+### Design (Lumen)
+**Does:** Writes the UI spec — component list, layout, color tokens, typography. Saves `design/ui-spec.md`. Sometimes ships a skeleton component as a reference.
 
-Creative execution layer. Design Agent handles all copywriting, content generation, and brand-consistent output across text and image formats.
+**Doesn't:** Implement the full app. That's Development's job.
 
-**Capabilities:**
-- Long-form copywriting: landing pages, pitch decks, whitepapers, ad copy
-- Social content: tweet threads, LinkedIn posts, Discord announcements
-- Image generation briefs for DALL-E 3 and Midjourney
-- Brand voice consistency enforcement (reads style guidelines from memory)
-- A/B variant generation for marketing experiments
+### Development (Orion)
+**Does:** Writes the actual application code. Vite + React + TypeScript + Tailwind by default. Creates `frontend/package.json`, `frontend/src/main.tsx`, `frontend/src/App.tsx`, component files. This is the role whose output the preview iframe actually renders.
 
-**Design Agent reads brand guidelines from memory** — if your Research Agent stores style rules or previous campaign assets, Design Agent will automatically apply them without re-prompting.
+**Doesn't:** Plan strategy, project KPIs, or write marketing copy.
 
----
+**Special behavior:** Uses `reasoning_effort: "none"` on the backend — cuts reasoning-token spend ~30% → 0% with no quality loss on code tasks. Also participates in the auto-fix loop: if the preview throws a runtime error, Development reads the trace and patches the affected file.
 
-### Treasury Agent
-**Model:** Claude Haiku 4.5 &nbsp;·&nbsp; **Color:** `#10b981` (green) &nbsp;·&nbsp; **Trust level:** Highest
+### Marketing (Nyx)
+**Does:** Headline, social copy, hero CTA, go-to-market plan. Writes `notes/Marketing.md`.
 
-Financial operations and on-chain settlement. Treasury Agent is the only agent with authority to sign Solana transactions.
+**Doesn't:** Touch the codebase. Marketing is markdown-only.
 
-**Capabilities:**
-- Escrow locking (`lock_escrow`) when a mission starts
-- Milestone release (`release_milestone`) as tasks complete
-- Mission settlement (`settle_mission`) on completion
-- Budget burn rate analysis and overspend alerting
-- Multi-sig coordination for amounts above threshold (default: 50 SOL)
-- Refund routing (unused budget → creator wallet)
+### Treasury (Axiom)
+**Does:** Decides the budget split (compute / tokens / reserve / settlement). Writes `notes/Treasury.md`. Records the on-chain escrow PDA used for the mission.
 
-**Security model:** Treasury Agent's signing keypair is stored in the backend's HSM-equivalent environment. It only signs transactions that the orchestrator has cryptographically authorized through a two-step approval flow.
+**Doesn't:** Write code or directly call on-chain instructions. The user's wallet does the signing.
+
+### Analytics (Echo)
+**Does:** Projects success metrics. KPIs, expected CTR / conversion / latency / cost. Writes `notes/Analytics.md`.
+
+**Doesn't:** Implement instrumentation. Just specifies what should be measured.
+
+### Coordination (Halo)
+**Does:** Tracks handoffs, flags blocked dependencies, summarizes the chain at completion. Writes `notes/Coordination.md`.
+
+**Doesn't:** Override other agents' decisions.
+
+### Memory (Sage)
+**Does:** Curates the persistent context the swarm carries between sessions. Writes embeddings to the memory store for future missions to retrieve.
+
+**Doesn't:** Generate new content for the current mission.
 
 ---
 
-### Coordination Agent
-**Model:** GPT-4o-mini &nbsp;·&nbsp; **Color:** `#06b6d4` (light cyan)
+## Which Agents Run on a Mission
 
-The backbone of multi-agent communication. Coordination Agent runs continuously throughout a mission, managing message routing between agents and resolving conflicts when parallel workers produce conflicting results.
+The default roster depends on the priority tier set in the wizard:
 
-**Capabilities:**
-- Inter-agent message routing and fan-out
-- Conflict resolution when two agents produce contradictory outputs
-- Realtime status aggregation → WebSocket broadcast
-- Delegation conflict detection (prevents duplicate work)
-- Stale agent detection and re-assignment
-
-**Coordination Agent is invisible to users** — it operates entirely in the background and only appears in the Live Console as routing events.
-
----
-
-### Analytics Agent
-**Model:** DeepSeek v3 &nbsp;·&nbsp; **Color:** `#8b5cf6` (violet)
-
-Data intelligence layer. Analytics Agent measures everything — workflow efficiency, agent performance, mission ROI — and surfaces actionable insights in the Analytics dashboard.
-
-**Capabilities:**
-- Workflow efficiency metrics (task completion rate, time-per-task, blockers)
-- Agent performance benchmarking across missions
-- Mission ROI analysis (SOL spent vs. estimated output value)
-- Anomaly detection in execution pipelines
-- Trend analysis over historical mission data
-
-**Analytics Agent writes structured JSON reports to memory** that are surfaced on the `/analytics` dashboard.
-
----
-
-### Development Agent
-**Model:** DeepSeek v3 (code-optimized) &nbsp;·&nbsp; **Color:** `#0ea5e9` (sky blue)
-
-Code execution and automation. Development Agent generates, reviews, and tests code artifacts as part of a mission. Useful for missions that require API integrations, automation scripts, or prototype implementations.
-
-**Capabilities:**
-- TypeScript/Python/Rust code generation
-- API integration scaffolding and boilerplate
-- Test suite generation (unit + integration)
-- Deployment scripting (Docker, CI/CD configs)
-- Code review and security audit
-
-**Note:** Development Agent does not execute code directly in production — it generates artifacts that a human engineer reviews and deploys. Sandboxed execution for non-destructive scripts is on the roadmap.
-
----
-
-## Agent Lifecycle
-
-```
-Mission Created
-      │
-      ▼
-Strategy Agent decomposes into task tree
-      │
-      ▼
-Orchestrator assigns tasks to agent workers
-      │
-      ▼
-Agents enter QUEUED state (Redis task queue)
-      │
-      ▼
-Agent worker picks up task → RUNNING state
-      │
-      ├── Reads from Qdrant shared memory (context)
-      ├── Executes task (LLM call + tool use)
-      ├── Writes results to Qdrant shared memory
-      ├── Emits completion event → WebSocket bus
-      └── Returns result to orchestrator
-              │
-              ▼
-      Orchestrator updates task tree
-              │
-              ├── All milestone tasks done?
-              │   └── Treasury Agent releases payment
-              └── All tasks done?
-                  └── Mission → SETTLING → COMPLETED
-```
-
-### Agent States
-
-| State | Description |
+| Tier | Agents |
 |---|---|
-| `idle` | Registered, waiting for task assignment |
-| `queued` | Task assigned, waiting in Redis queue |
-| `running` | Actively executing a task |
-| `paused` | Waiting for human approval or peer output |
-| `error` | Task failed; orchestrator may retry or re-assign |
-| `offline` | Agent worker process is unreachable |
+| `low` | Strategy, Development, Treasury |
+| `std` | Strategy, Research, Development, Treasury, Coordination |
+| `high` | Strategy, Research, Design, Development, Marketing, Treasury, Coordination |
+| `crit` | All nine |
+
+You can edit the roster manually on the Mission Create page — adding/removing agents updates the budget estimate in real time.
 
 ---
 
-## Trust Score & Reputation
+## Per-Agent Model Override
 
-Each agent accumulates a `trustScore` (0–100) that's stored on-chain in an `AgentReputation` PDA. The score gates task assignment — higher-trust agents receive more complex, higher-budget tasks.
+In the **Agent Roster** section of the mission wizard, each selected agent has a model dropdown. Defaults come from the table above; you can override.
 
-**Score formula:**
+Available models are surfaced from `src/lib/agent-models.ts`:
 
-```
-trustScore = (reputation / 5.0) * 100 * recencyMultiplier
-
-reputation = weighted_average(
-  task_completion_rate * 0.40,
-  output_quality_score * 0.30,
-  on_time_delivery     * 0.20,
-  delegation_accuracy  * 0.10
-)
-```
-
-| Factor | Weight | Measurement |
-|---|---|---|
-| Task completion rate | 40% | Tasks finished ÷ tasks assigned |
-| Output quality score | 30% | Peer-review score from orchestrator |
-| On-time delivery | 20% | Completion before deadline |
-| Delegation accuracy | 10% | Sub-task quality when agent delegates |
-
-Trust scores are updated on-chain after every mission via the `update_reputation` instruction, signed by the Treasury Agent.
-
----
-
-## Permissions Matrix
-
-Each agent type has default permissions configurable in **Settings → Agent Permissions**:
-
-| Capability | Strategy | Research | Design | Treasury | Coordination | Analytics | Development |
-|---|---|---|---|---|---|---|---|
-| Delegate to peers | ✓ | ✓ | ✓ | — | ✓ | — | ✓ |
-| Modify mission scope | ✓ | — | — | — | ✓ | — | — |
-| Read shared memory | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Write shared memory | ✓ | ✓ | ✓ | — | ✓ | ✓ | ✓ |
-| Approve payouts | — | — | — | ✓ | — | — | — |
-| Sign on-chain txs | — | — | — | ✓ | — | — | — |
-| Generate code artifacts | — | — | — | — | — | — | ✓ |
-| Access Analytics data | — | — | — | — | — | ✓ | — |
-
----
-
-## Adding Agents to a Mission
-
-Select agents at mission creation time. You can combine any subset:
-
-```typescript
-POST /api/missions
-{
-  "agents": ["Strategy", "Research", "Design", "Analytics"],
-  "budget": 24,
-  ...
-}
-```
-
-**Recommended combinations:**
-
-| Use case | Agent team |
+| Tier | Models |
 |---|---|
-| Market research | Research + Analytics + Strategy |
-| Marketing campaign | Strategy + Research + Design + Analytics |
-| Product launch | All 7 agents |
-| Technical prototype | Strategy + Development + Research |
-| Treasury operations | Treasury + Analytics + Coordination |
+| `light` | GPT-4o mini, GPT-4.1 mini, GPT-5 nano |
+| `standard` | GPT-4o, GPT-4.1, GPT-5 mini, Llama 4 70B, Mixtral 8x22B, DeepSeek v3 |
+| `reasoning` | o1 mini, o3 mini, Llama 4 405B |
+| `premium` | o1, o3, GPT-5.1, GPT-5.5, GPT-5.5 pro, Claude 4.7 Sonnet, Claude 4.7 Opus, Gemini 2.5 Pro |
+
+Today the **light** and **standard** tiers are enabled in the UI. The **reasoning** and **premium** tiers render with a "Soon" badge and are disabled — they advertise the multi-vendor routing roadmap but aren't selectable yet.
+
+> **Backend reality:** Every agent invoke routes through `OPENAI_MODEL_ALL` (currently `gpt-5.5`) regardless of the model the user picks. The non-OpenAI ids (Claude, Llama, Mixtral, DeepSeek, Gemini) are surfaced for the multi-provider story but the runtime falls back to env routing. See [Choosing Models →](../guides/choosing-models) for the full picture.
 
 ---
 
-## Custom Agents
+## Agent Execution Order
 
-You can build and deploy custom agents to the HiveMind Marketplace. See the [Custom Agents guide](../guides/custom-agent) for implementation details, the `BaseAgent` class API, and marketplace listing requirements.
+Within a mission, agents fire in this priority order (set in `AgentWorkspace.tsx`):
+
+```
+1. Development   — only role that edits files; fire first so code lands early
+2. Coordination  — flags blockers as soon as Development saves
+3. Design        — UI spec for Development to reference (already saved by now)
+4. Strategy      — pre-Development plan (already saved by now)
+5. Research      — supporting context
+6. Marketing
+7. Treasury
+8. Analytics
+9. Memory
+```
+
+This is *follow-up* order (used when the user sends a message after launch). The *initial* swarm run executes in a more natural order: Strategy → Research → Design → Development → Marketing → Treasury → Coordination, with later agents seeing the outputs of earlier ones.
+
+---
+
+## Reputation
+
+Every agent has an on-chain reputation PDA at `["reputation", agent_pubkey]`. Trust score is a signed integer the protocol authority can update via `update_agent_reputation(delta)`. The Reputation page (`/reputation`) reads these PDAs and displays per-agent trust history.
+
+---
+
+## Next
+
+- **[Choosing Models →](../guides/choosing-models)** — per-agent model selection details
+- **[First Mission →](../guides/first-mission)** — walk through an end-to-end run
+- **[Live Preview →](../guides/live-preview)** — Sandpack + the auto-fix loop
