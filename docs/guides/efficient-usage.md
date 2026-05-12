@@ -1,218 +1,201 @@
 ---
 id: efficient-usage
 title: Using HiveMind Efficiently
-sidebar_position: 5
+sidebar_position: 10
 ---
 
 # Using HiveMind Efficiently
 
-HiveMind is most effective when missions are well-scoped, memory is curated, and agent teams are matched to the task. This guide covers patterns that consistently produce better results.
+Tactics for getting the most out of HiveMind — both in terms of SOL spent and time to a working artifact. Everything here is grounded in how the system actually works today, not hypothetical optimizations.
 
 ---
 
-## Writing Effective Mission Objectives
+## Write a prompt the swarm can run with
 
-The objective is the single most important input. Vague objectives produce generic outputs. Specific objectives produce production-ready deliverables.
+The biggest lever is the prompt. The swarm runs better when you give it:
 
-### Low-quality objective ❌
-```
-Do some marketing research
-```
+- **A clear deliverable.** "Build a Solana NFT minting landing page" beats "make me something cool for my project."
+- **One or two structural anchors.** "— hero, gallery, mint button" tells Design which sections to spec.
+- **Domain context if it's non-obvious.** "Solana NFT" already implies wallet adapter + mint; if you want something less common (token-gated, ZK-proof'd, etc.), say so.
 
-### High-quality objective ✓
+### Good prompts
+
 ```
-Research the top 10 Solana DeFi protocols by TVL that launched in Q1 2026.
-For each: name, TVL, growth rate vs. Q4 2025, primary user segment, and top 3
-differentiators. Output a structured table + a 500-word executive summary
-highlighting the #1 opportunity for a new entrant.
+Build a Solana NFT minting landing page — hero, gallery, mint button.
 ```
 
-**Rules for good objectives:**
-1. State the deliverable format (table, report, code, tweets, etc.)
-2. Include a scope constraint (top 10, Q1 2026, Solana only)
-3. Name the intended audience (developers, investors, CTOs)
-4. Specify the desired length or depth
-5. Mention any constraints or must-haves
+```
+Design a pitch deck for a developer-tools startup. 10 slides, dark mode, code samples on slides 4–6.
+```
+
+```
+Research Solana DeFi protocols launched in Q1 2026. Market share, TVL trends, and growth metrics. Tabular output.
+```
+
+### Bad prompts
+
+```
+Help me with my project
+```
+
+```
+Make it look professional
+```
+
+```
+Build something cool with AI
+```
+
+The swarm will still run, but it'll spend most of its budget guessing at what you meant.
 
 ---
 
-## Choosing the Right Agent Team
+## Pick the right priority tier
 
-Each agent type costs compute. Only include agents whose capabilities the mission actually needs.
+The four tiers drive both the default agent roster and the budget. Choosing the right one saves you SOL.
 
-### Research missions
+| Tier | When to use | Default agents | Budget |
+|---|---|---|---|
+| `low` | Quick experiment, one-shot test | Strategy, Development, Treasury | 1.5 SOL |
+| `std` | Most "build me X" missions | + Research, Coordination | 3.5 SOL |
+| `high` | Production-quality with marketing copy | + Design, Marketing | 6 SOL |
+| `crit` | Pitch-ready, every angle covered | + Analytics, Memory | 9 SOL |
 
-```
-Agents: Research + Analytics + Strategy
-```
+If you're just testing the swarm, **start with `std`**. The default Strategy / Research / Development / Treasury / Coordination roster is enough for almost any code mission.
 
-Research finds the data. Analytics quantifies it. Strategy structures the output and writes the executive summary.
-
-### Marketing campaign
-
-```
-Agents: Strategy + Research + Design + Analytics
-```
-
-Strategy decomposes the campaign. Research does competitive analysis. Design drafts all copy and content. Analytics projects performance metrics.
-
-### Technical prototype
-
-```
-Agents: Strategy + Development + Research
-```
-
-Strategy scopes the project. Research finds relevant APIs and libraries. Development generates the code.
-
-### Treasury/governance operations
-
-```
-Agents: Treasury + Analytics + Coordination
-```
-
-Treasury handles on-chain transactions. Analytics monitors budget burn. Coordination routes status updates.
-
-### Full-scale product launch
-
-```
-Agents: All 7
-```
-
-Only use all 7 agents when the mission genuinely requires every domain — most missions don't. Running 7 agents on a focused task wastes budget and generates noise.
+You can change the priority mid-wizard without losing your prompt — the agent roster repopulates but everything else stays.
 
 ---
 
-## Budget Allocation
+## Drop agents you don't need
 
-Budget drives agent quality. Agents use their compute quota to make more LLM calls and use more expensive models.
+The Mission Create wizard lets you uncheck individual agents. Every agent you remove cuts cost by `agent_count × model_solMult × priority_base`.
 
-**Rough guidelines:**
+Common removals:
 
-| Mission type | Recommended budget | ETA |
-|---|---|---|
-| Quick research report | 4–6 SOL | 2–4h |
-| Marketing campaign | 20–28 SOL | 6–10h |
-| Technical deep-dive | 12–16 SOL | 4–6h |
-| Full product launch | 60–100 SOL | 12–24h |
-| On-chain treasury op | 2–4 SOL | 30–60min |
+- **Memory** — useful only when you plan to chain follow-up missions on the same context
+- **Analytics** — overkill for one-off builds; useful for actual product work
+- **Marketing** — drop if you don't need copy
+- **Treasury** — keep it on; it's cheap and writes useful escrow notes
 
-If a mission runs out of budget before completing, the orchestrator pauses execution and sends a delegation event asking for budget extension. You can approve or cancel from the Mission Detail page.
+The minimum useful roster for a code mission is Strategy + Development + Coordination.
 
 ---
 
-## Seeding Memory Before You Start
+## Use lighter models when you can
 
-The single biggest quality multiplier is pre-seeded memory. Agents that start with context produce dramatically better outputs than agents starting cold.
+The model dropdowns let you downshift any agent to a cheaper model. Defaults are tuned, but for casual work:
 
-Before your first real mission, run a dedicated "context seeding" mission:
+- **Memory + Coordination + Marketing** can almost always run on light tier (GPT-4o mini, GPT-4.1 mini)
+- **Development** is the role where model quality matters most — keep it on standard tier or higher
+- **Strategy + Research** can run on light tier for simple missions; bump to standard for complex protocol decisions
 
-```
-Mission: Context seeding
-Objective: Store the following context in shared memory for use by future missions:
-  1. Company background: [paste your company description]
-  2. Target audience: [paste ICP definition]
-  3. Brand voice: [paste style guidelines]
-  4. Competitive landscape: [paste competitor analysis]
-  5. Product context: [paste product description]
-Agents: Research (to embed and organize)
-Budget: 2 SOL
-```
+Reasoning and premium tiers are **disabled today** (Coming soon). Stick with light + standard.
 
-Or seed directly via the API (fastest):
-
-```typescript
-const chunks = [
-  { text: "Company: ...", tags: ["context", "company"] },
-  { text: "Brand voice: ...", tags: ["context", "brand"] },
-  { text: "Target audience: ...", tags: ["context", "audience"] },
-];
-
-for (const chunk of chunks) {
-  await fetch("/api/memory/upsert", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ ...chunk, missionId: null }),
-  });
-}
-```
+See [Choosing Models →](./choosing-models) for the full catalog.
 
 ---
 
-## Monitoring Live Missions
+## Don't burn budget on follow-ups before mission settles
 
-### Live Console (`/console`)
+While the mission is `active`, every chat message you send dispatches a fresh swarm round. This is *expensive*. Wait for the mission to complete before iterating.
 
-The Live Console streams every agent's reasoning in real time. It's the most detailed view — each agent logs what it's doing, what tools it's calling, and what confidence it has in its outputs.
+After completion:
+- **5 free follow-up messages** per mission
+- **0.05 SOL per message** thereafter
 
-**When to watch:**
-- When a mission is running and something seems stuck (look for repeated error events)
-- When you want to understand how agents are interpreting your objective
-- When you want to spot a low-confidence step before it completes
+If you know you'll need lots of iterations, **launch a larger mission with clearer deliverables instead of a small one and 20 follow-ups**. The economics favor going big once over going small repeatedly.
 
-### Mission Detail (`/missions/:id`)
-
-The task tree view shows the full decomposition from Strategy Agent — all stages, tasks, dependencies, and current status. This is the best view for understanding mission structure.
-
-**When to watch:**
-- After a mission is created, to verify the task decomposition makes sense
-- When a milestone completes, to see which tasks are next
-- When something fails, to trace which task and which agent is responsible
-
-### Dashboard (`/dashboard`)
-
-The mission feed gives a live percentage progress bar and a recent activity stream. Good for a quick status check without the detail of the console.
+See [Follow-up Paywall →](./follow-up-paywall).
 
 ---
 
-## Interpreting Agent Output
+## Batch related missions on the same wallet
 
-### Trust scores as signal
+The on-chain reputation PDA is keyed per agent pubkey, not per wallet — so you don't get a "loyalty discount" for using HiveMind a lot. But:
 
-An agent with `trustScore < 70` is executing a task outside its typical performance zone — either the task is too broad, the context is poor, or the model is struggling. Check the Live Console when you see low-confidence events.
+- Missions on the same wallet share the per-wallet `localStorage` and backend mission table — you can reference past mission artifacts in your prompt ("build a landing page that matches the design from mission M-242")
+- The funder wallet sponsors free-trial registration once per wallet — switching wallets means losing the trial credits
 
-### Memory relevance scores
-
-When querying memory, results with `relevance < 0.7` are loosely related — treat them as background context, not authoritative sources. Results with `relevance > 0.9` are highly relevant and can be cited directly.
-
-### Strategy Agent confidence
-
-At mission creation, Strategy Agent outputs a `confidence` estimate. Below 65%, it's flagging ambiguity in your objective. Read the decomposition carefully and look for vague tasks — you may want to cancel, refine your objective, and restart.
+Stay on one wallet unless you have a real reason to switch.
 
 ---
 
-## Cost Optimization
+## Use the layout toggle
 
-### Use Groq for low-latency tasks
+The Agent Workspace has three layouts: Chat-only, Split, Code-only. Plus a fullscreen mode.
 
-Add `GROQ_API_KEY` to your backend `.env`. Groq runs Llama 3 at sub-100ms response times at very low cost. The orchestrator uses it as a fallback for Coordination and Analytics agent tasks where model capability matters less than throughput.
+- **Chat-only** while waiting for early agents (Strategy / Research) — preview isn't bundleable yet
+- **Split** once Development starts saving files — watch both the chat and the preview
+- **Code-only** when you want to read what was generated without distraction
+- **Fullscreen** for demos or when the sidebar is in the way
 
-### Lower `executionSpeedPct` for quality
-
-Setting `executionSpeedPct: 40` makes agents run sequentially and review each other's outputs. This produces noticeably higher quality but takes 2–3x longer. Worth it for final deliverables, not for exploratory missions.
-
-### Reuse memory across missions
-
-Memory stored from one mission is available to all future missions. Don't re-research the same topic twice — run a `POST /api/memory/query` before creating a new mission to see if the answer already exists in your knowledge base.
-
-### Monitor burn rate in the Treasury page
-
-The Treasury dashboard shows real-time SOL burn rate per mission. If a mission is burning budget too fast (e.g., `executionSpeedPct: 100` with large objectives), you can pause it from the Mission Detail page and adjust the scope.
+Hotkey: there's no hotkey for layout switching yet (good first issue if you want to contribute).
 
 ---
 
-## Common Pitfalls
+## Watch the coordination graph
 
-### Too many agents for a narrow task
-Running 5 agents on a task that only needs Research + Design wastes ~60% of the budget on agents that have nothing meaningful to contribute. Match agent count to actual domain coverage needed.
+The graph in the corner of the workspace (and on the Dashboard) visualizes role transitions in real time. If you see one agent stuck in "thinking" for >2 minutes, something's wrong:
 
-### No shared memory enabled
-If `sharedCrossAgentMemory: false`, agents can't read each other's findings. Research Agent's competitive analysis won't reach Design Agent's copy. Always leave this `true` unless you have a specific reason to isolate.
+- Refresh the page (the polling re-evaluates the artifact tree)
+- Check the backend logs for an OpenAI error
+- If `OPENAI_MODEL_ALL=gpt-5.5` is invalid (model not found), every call 404s silently — verify with `curl https://api.openai.com/v1/models` against your key
 
-### Objective with no deliverable format
-"Research marketing strategies" gives agents no target artifact. Add: "Output a 3-page competitive analysis with a recommendation matrix and 5 actionable tactics." Agents plan backwards from deliverables.
+---
 
-### Not watching the Live Console on the first run
-The first mission with a new objective is always the most important to monitor. Agents interpret your objective and you may want to course-correct early. After the first mission completes, subsequent similar missions run more smoothly because memory is populated.
+## Use the Accelerate button
 
-### Budget too low for complexity
-A 6-SOL mission given a 50-page whitepaper objective will time out halfway through. Match budget to output volume. If unsure, start with the recommended budgets above and adjust based on your first run.
+If the swarm seems to be moving slowly (sequential agents instead of parallel), click **Accelerate** in the Dashboard. This kicks off a fresh `swarm-run` that dispatches all pending agents in parallel.
+
+The button is disabled when the mission is `completed`.
+
+---
+
+## Cap the budget
+
+Even with `crit` priority, **10 SOL is the slider max**. There's no way to spend more on a single mission. If your mission feels too expensive at default settings:
+
+1. Lower the priority tier
+2. Drop optional agents (Marketing, Analytics, Memory)
+3. Downshift model tiers
+4. Tighten the prompt — vague prompts make the swarm spend more guessing
+
+---
+
+## Pre-fund the treasury for follow-ups
+
+If you know you'll need follow-up edits after the mission settles, **deposit ~0.5 SOL into the treasury before launching**. The Deposit button on the Treasury page is faster than approving each 0.05 SOL paywall tx individually. (Future versions may credit a balance; today each paywall hit is a separate signature.)
+
+See [Treasury Deposits →](./treasury-deposit).
+
+---
+
+## When the swarm fails
+
+Common failure patterns and what to do:
+
+| Symptom | Action |
+|---|---|
+| Preview stuck on "Building your preview…" past 10 min | Refresh. If still stuck, Development hasn't produced `package.json` + entry — relaunch the mission with a clearer prompt |
+| Auto-fix loop runs 5 times and gives up | Send a follow-up message with the specific error and ask Development to fix it manually |
+| Agent says "I can't help with that" | Your prompt triggered a safety filter — rephrase |
+| Mission stuck at 80% progress | Some non-code agent is hanging. Pause + Resume sometimes unblocks; otherwise launch a new mission |
+| Wallet balance drops but mission doesn't appear | The on-chain funding succeeded but the backend mission insert failed. Check backend logs; refresh; if the mission isn't in the dashboard, you can manually `settle_mission` to recover the SOL |
+
+---
+
+## What doesn't help
+
+- **Re-sending the same prompt.** If the swarm failed once, it'll fail the same way unless you change what you give it.
+- **Adding more agents.** More agents = more cost without proportional quality gain. Defaults are tuned.
+- **Switching wallets mid-mission.** You'll lose the mission state — it's scoped per-wallet.
+
+---
+
+## Next
+
+- **[First Mission →](./first-mission)** — walk through your first run
+- **[Choosing Models →](./choosing-models)** — model-level cost levers
+- **[Treasury Deposits →](./treasury-deposit)** — pre-fund the treasury for follow-ups
+- **[Follow-up Paywall →](./follow-up-paywall)** — what you pay per extra message

@@ -1,241 +1,208 @@
 ---
 id: customization
 title: Customizing HiveMind
-sidebar_position: 4
+sidebar_position: 8
 ---
 
 # Customizing HiveMind
 
-HiveMind is designed to be extended. This guide covers all the ways you can customize the platform — from mission configs to custom agents to frontend theming.
+This guide covers the customization levers that work today: env-var overrides, per-mission config, agent persona tuning, and the model catalog. For full custom agents see [Custom Agents →](./custom-agent).
 
 ---
 
-## Mission Configuration
+## Frontend customization (no code changes)
 
-Every mission accepts a `config` object that controls agent behavior:
+These work purely through env vars on the Vercel deployment.
 
-```json
-{
-  "config": {
-    "delegationPct": 70,
-    "executionSpeedPct": 80,
-    "collaborationPct": 75,
-    "autoApproveSubtasks": true,
-    "sharedCrossAgentMemory": true,
-    "autoOnChainSettlement": true,
-    "deadlineIso": "2026-06-01T00:00:00Z"
-  }
-}
+| Variable | Default | Effect |
+|---|---|---|
+| `VITE_API_URL` | `http://localhost:8787` | Backend base URL |
+| `VITE_SOLANA_RPC_URL` | `clusterApiUrl("devnet")` | Solana RPC endpoint — point at Helius / QuickNode to escape devnet rate limits |
+| `VITE_HM_TREASURY_PUBKEY` | `G4o8wSS85Jzc…xWPc` (funder) | Recipient for Treasury deposits + follow-up payments |
+
+To change them on Vercel:
+
+```bash
+vercel env add VITE_HM_TREASURY_PUBKEY production
+vercel deploy --prod
 ```
 
-### `delegationPct` (0–100)
+---
 
-Controls how aggressively agents delegate subtasks to each other without asking for human approval.
+## Backend customization (env vars)
 
-- **Low (30–50):** More human checkpoints. Good for sensitive or high-stakes missions.
-- **Medium (60–75):** Default. Balances autonomy with oversight.
-- **High (80–100):** Fully autonomous. Best for well-scoped, low-risk missions.
-
-### `executionSpeedPct` (0–100)
-
-Trade-off between speed (parallel execution, faster models) and quality (sequential review, slower models).
-
-- **Low (0–40):** Each agent waits for the previous to finish and review. Higher quality, slower.
-- **Medium (60–80):** Mixed. Some stages parallel, some sequential. Default.
-- **High (90–100):** Maximum parallelism. Every agent runs simultaneously. Fastest, but no peer review.
-
-### `collaborationPct` (0–100)
-
-How much agents share intermediate results with each other during execution (not just at completion).
-
-- **Low:** Agents work in isolation, only share final outputs.
-- **High:** Agents share drafts, notes, and partial results continuously via shared memory.
-
-### `sharedCrossAgentMemory`
-
-When `true` (default), all agents in the mission share a single Qdrant namespace. When `false`, each agent gets an isolated memory store — useful for A/B testing agent strategies.
-
-### `autoOnChainSettlement`
-
-When `true` (default), the Treasury Agent automatically releases escrow as milestones complete. When `false`, every payment requires manual approval in the Treasury page.
+| Variable | Default | Effect |
+|---|---|---|
+| `OPENAI_MODEL_ALL` | `gpt-5.5` | Backend routes every agent call to this model. Multi-vendor routing is on the roadmap; today this is the single source of truth. |
+| `OPENAI_MODEL_HEAVY` | `gpt-5.5` | Model used for heavy codegen (Development, Coordination on long missions) |
+| `OPENAI_MODEL_CRIT` | `gpt-5.5` | Model used for `crit` priority missions |
+| `SWARM_BUILD_REPAIR_MAX_ROUNDS` | `6` | Max auto-fix rounds before giving up on a broken preview |
+| `FUNDER_SECRET_KEY` | — | Keypair that sponsors free-trial registrations |
+| `PROGRAM_ID` | `EV447F…Q5om` | Solana program ID (if you redeploy your own) |
 
 ---
 
-## Agent Permissions
+## Per-mission customization
 
-Customize what each agent type is allowed to do in **Settings → Agent Permissions**.
-
-| Permission | Description |
-|---|---|
-| `delegate_to_peers` | Can assign subtasks to other agents |
-| `modify_mission_scope` | Can expand or contract the task tree |
-| `write_shared_memory` | Can persist data to the Qdrant store |
-| `approve_payouts` | Can sign milestone release transactions |
-| `sign_on_chain_txs` | Can submit transactions to Solana |
-
-To restrict an agent type globally, edit `settings.agentPermissions` via the API:
+Every mission stores a `config` object that lets you tune behavior without touching code. From the UI, these are the wizard fields. From the API, post directly:
 
 ```typescript
-PATCH /api/settings
+POST /api/missions
 {
-  "agentPermissions": {
-    "Research": {
-      "delegate_to_peers": false,
-      "write_shared_memory": true
+  "title": "...",
+  "objective": "...",
+  "priority": "high",
+  "agents": ["Strategy", "Development", "Treasury"],
+  "budget": 4,
+  "config": {
+    // Per-role model override (see Choosing Models)
+    "agentModels": {
+      "Development": "llama-4-70b",
+      "Treasury": "mixtral-8x22b"
+    },
+    // Promised outputs the swarm tracks
+    "deliverables": ["Hero section", "Mint button", "Gallery"],
+    // KPIs the swarm optimizes toward
+    "successMetrics": [
+      { "label": "Lighthouse Performance", "target": "≥ 95" },
+      { "label": "First Contentful Paint", "target": "< 1.2s" }
+    ],
+    // Hard deadline (drives ETA + scheduling)
+    "deadlineIso": "2026-05-19T18:00:00Z",
+    // How much of each task to delegate vs. handle directly (0-100)
+    "delegationPct": 70,
+    // How fast to execute (lower = more thorough, higher = faster)
+    "executionSpeedPct": 50,
+    // Cross-agent collaboration level (0-100)
+    "collaborationPct": 65,
+    // Auto-approve subtasks below this confidence threshold
+    "autoApproveSubtasks": true,
+    // Share memory chunks across agents in real time
+    "sharedCrossAgentMemory": true,
+    // Try to settle escrow on-chain automatically (MVP: not wired)
+    "autoOnChainSettlement": false,
+    // Budget split across compute / tokens / reserve / settlement (must sum to 1.0)
+    "budgetAllocation": {
+      "agentCompute": 0.45,
+      "tokenUsage": 0.22,
+      "escrowReserve": 0.20,
+      "settlementBuffer": 0.13
     }
   }
 }
 ```
 
----
-
-## Custom Agent Models
-
-By default, each agent type uses a specific model. You can override the model per-agent in **Settings → Models**:
-
-| Agent | Default Model | Recommended Alternatives |
-|---|---|---|
-| Strategy | Claude Opus 4.7 | Claude Sonnet 4.6 (cheaper) |
-| Research | GPT-4o | Perplexity Sonar (with web search) |
-| Design | GPT-4o | Claude Sonnet 4.6 |
-| Treasury | Claude Haiku 4.5 | GPT-4o-mini |
-| Coordination | GPT-4o-mini | Claude Haiku 4.5 |
-| Analytics | DeepSeek v3 | GPT-4o |
-| Development | DeepSeek v3 | Claude Sonnet 4.6 |
-
-Configure model overrides in `.env`:
-
-```bash
-STRATEGY_MODEL=claude-opus-4-7
-RESEARCH_MODEL=gpt-4o
-DESIGN_MODEL=claude-sonnet-4-6
-TREASURY_MODEL=claude-haiku-4-5-20251001
-COORDINATION_MODEL=gpt-4o-mini
-ANALYTICS_MODEL=deepseek-chat
-DEVELOPMENT_MODEL=deepseek-coder
-```
+All `config` fields are optional — defaults are populated by the Mission Create wizard.
 
 ---
 
-## Persistent Memory Seeding
+## Customizing agent personas
 
-Before your first mission runs, you can pre-populate shared memory with your brand guidelines, product context, or previous research. This gives all agents immediate context without requiring a discovery mission.
+Each role has an "expert identity" string injected into its system prompt. This is what makes Strategy talk like an ex-YC partner and Treasury like a CFO.
+
+Edit `hivemind-backend/src/services/agent-runtime.ts`:
 
 ```typescript
-POST /api/memory/upsert
-{
-  "text": "Company: Acme Corp. Product: B2B SaaS analytics platform. Target audience: enterprise CTOs and engineering directors. Tone: technical, data-driven, never buzzword-heavy. Key differentiators: 10x faster than Tableau, built for engineers, no-code optional.",
-  "tags": ["brand", "product", "audience"],
-  "missionId": null
-}
+const ROLE_EXPERT_IDENTITY: Record<string, string> = {
+  Strategy: "You are an ex-YC partner with deep experience helping early-stage founders pick architecture and sequence go-to-market...",
+  Design: "You are a senior Figma design lead...",
+  // ... edit any of these to change tone
+};
 ```
+
+Bigger structural changes (output format, file paths, deliverable checklist) live in the `roleInstruction` helper in `src/routes/missions.ts`. That's where each role's promised output contract is defined.
+
+---
+
+## Customizing the model catalog
+
+The list of models surfaced in the Mission Create dropdown lives in `hivemind-frontend/src/lib/agent-models.ts`. To add or remove a model:
 
 ```typescript
-POST /api/memory/upsert
-{
-  "text": "Pricing: Starter $299/mo, Growth $999/mo, Enterprise custom. Competitors: Looker, Tableau, Power BI. Our advantage: developer-first API, 200ms P99 query latency, SOC 2 Type II.",
-  "tags": ["pricing", "competitive", "product"],
-  "missionId": null
-}
+export const AGENT_MODEL_CATALOG: readonly AgentModel[] = [
+  // existing entries...
+  { id: "your-model-id", label: "Your Model", desc: "Description", solMult: 1.8, tier: "standard" },
+] as const;
 ```
 
-Seeds with `missionId: null` persist indefinitely and are available to all future missions.
+Then, **and this is the important part**, route the model on the backend. Add a case in `hivemind-backend/src/services/agent-runtime.ts` that maps the model id to the right SDK call. If you don't, the model id is stored on the mission but the actual call still goes to `OPENAI_MODEL_ALL`.
+
+### Locking a tier
+
+To make a model "Coming soon" (disabled in the dropdown), set its tier to something not in `ENABLED_MODEL_TIERS`:
+
+```typescript
+const ENABLED_MODEL_TIERS = new Set(["light", "standard"]);
+```
+
+`reasoning` and `premium` are intentionally locked today.
 
 ---
 
-## Custom Agents
+## Customizing the priority tiers
 
-Build your own agent and deploy it to the HiveMind Marketplace. See the [Custom Agents guide](./custom-agent) for the full implementation walkthrough.
+The four mission priority tiers (`low` / `std` / `high` / `crit`) drive default agent rosters and budgets. They live in `hivemind-frontend/src/app/MissionCreate.tsx`:
 
-**Quick overview:**
+```typescript
+const PRIORITY_AGENTS: Record<string, string[]> = {
+  low: ["Strategy", "Development", "Treasury"],
+  // ...
+};
 
-1. Extend `BaseAgent` from `hivemind-backend/src/services/agents/base.ts`
-2. Implement `execute(task: Task): Promise<TaskResult>`
-3. Register your agent via `POST /api/agents/register`
-4. Deploy to the Marketplace for other users to commission
-
-```python
-from hivemind import BaseAgent, Task, TaskResult
-
-class MyCustomAgent(BaseAgent):
-    agent_type = "Custom"
-    model = "claude-sonnet-4-6"
-
-    async def execute(self, task: Task) -> TaskResult:
-        context = await self.memory.query(task.objective)
-        result = await self.llm.complete(
-            system="You are a specialized...",
-            user=f"{task.objective}\n\nContext: {context}"
-        )
-        await self.memory.write(result, tags=["custom-output"])
-        return TaskResult(output=result, confidence=0.88)
+const PRIORITY_BUDGET: Record<string, number> = {
+  low: 1.5,
+  std: 3.5,
+  high: 6,
+  crit: 9,
+};
 ```
+
+Hard cap on budget is 10 SOL (the slider's max). To raise it, search `MissionCreate.tsx` for `max-w-[10` / `10 SOL` references.
 
 ---
 
-## Frontend Theming
+## Customizing the preview build
 
-The frontend uses **Tailwind CSS v4** with a custom dark design system. Core design tokens are in `tailwind.config.ts` and `src/styles/`:
+The preview-manager (`hivemind-backend/src/services/preview-manager.ts`) applies several normalizations to every artifact tree before bundling. Tune them:
 
-```css
-/* Override in src/styles/globals.css */
-:root {
-  --hm-accent: 34 211 238;   /* cyan-400 = #22d3ee */
-  --hm-accent2: 168 85 247;  /* purple-500 = #a855f7 */
-  --hm-bg: 4 6 12;           /* #04060c near-black */
-  --hm-surface: 8 11 20;     /* #080b14 panel bg */
-}
-```
+| Behavior | Where |
+|---|---|
+| Vite version clamp (forces `^5.4.21`) | `normalizeLegacyViteFrontendPackageJson` |
+| postcss / tailwind force-`.cjs` | `normalizeTailwindForBuild` |
+| Malformed double-extension purge | `purgeMalformedDoubleExtensionFiles` |
+| 5-attempt heal loop | `start()` retry budget constant |
 
-To use a different accent color (e.g., emerald):
-1. Update `--hm-accent` in your global CSS
-2. Update `--ifm-color-primary` in `hivemind-docs/src/css/custom.css` to match
-3. Rebuild both frontend and docs
+If you change `SWARM_BUILD_REPAIR_MAX_ROUNDS` (env var), the **frontend's** auto-fix budget changes too. Lower it for faster failure surfacing; raise it for stubborn missions.
 
 ---
 
-## Backend Configuration
+## Customizing the realtime channels
 
-Key environment variables for customization:
+The WebSocket hub broadcasts on two channel patterns:
 
-```bash
-# LLM providers — add any combination
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GROQ_API_KEY=gsk_...           # fallback for high-throughput
-DEEPSEEK_API_KEY=sk-...
+```typescript
+// global — every wallet sees this
+hub.broadcast({ type: "payment.created", payload: ... }, "global");
 
-# Mission defaults
-DEFAULT_DELEGATION_PCT=70
-DEFAULT_EXECUTION_SPEED_PCT=80
-DEFAULT_COLLABORATION_PCT=75
-MAX_MISSION_BUDGET_SOL=500
-
-# Treasury controls
-MULTISIG_THRESHOLD_SOL=50      # amounts above this require multi-sig
-AUTO_APPROVE_BELOW_SOL=1       # amounts below this auto-approve
-
-# Memory
-QDRANT_COLLECTION=hivemind     # change to isolate workspaces
-EMBED_MODEL=text-embedding-ada-002
-
-# Rate limits
-MAX_MISSIONS_PER_HOUR=10
-MAX_AGENTS_PER_MISSION=7
-
-# Solana
-SOLANA_RPC_URL=https://api.devnet.solana.com
-PROGRAM_ID=EV447FY9Q7Ty7pFo8wDPFRhkqASmj87GZjFr8CPjQ5om
+// mission:<id> — only listeners on this mission see it
+hub.broadcast({ type: "mission.completed", payload: ... }, `mission:${id}`);
 ```
+
+Add new event types in `src/services/realtime.ts`. The frontend's `useHiveMindActivity` hook (and its siblings) listen to these channels — extend the type union and add a handler.
 
 ---
 
-## Multi-workspace Setup
+## What you can't customize (yet)
 
-To run multiple isolated HiveMind instances sharing a single backend (e.g., per-team workspaces):
+- The on-chain program logic — `hivemind-contracts/programs/hivemind-protocol/src/lib.rs` is the source of truth. To change `fund_mission` / `settle_mission` math, redeploy.
+- The wallet-signature auth flow — `requireWallet` is fixed; you can add additional checks but not remove the wallet requirement
+- The `localStorage` key prefix — `hm-*:<walletPk>` is hard-coded to enforce per-wallet scoping
+- The Sandpack bundler's behavior — the iframe uses Sandpack's public API; we can't change its retry semantics
 
-1. Create a separate Qdrant collection per workspace: `QDRANT_COLLECTION=team-a`
-2. Issue separate JWT secrets per workspace
-3. Use the `workspace` claim in JWT tokens to namespace API data
+---
 
-This is not yet a first-class feature but is achievable with environment variable overrides and separate backend instances.
+## Next
+
+- **[Choosing Models →](./choosing-models)** — per-agent model overrides
+- **[Custom Agents →](./custom-agent)** — add a tenth agent
+- **[Efficient Usage →](./efficient-usage)** — get the most out of a SOL budget
